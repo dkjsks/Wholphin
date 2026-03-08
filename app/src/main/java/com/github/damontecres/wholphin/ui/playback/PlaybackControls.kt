@@ -107,6 +107,10 @@ sealed interface PlaybackAction {
     data object Previous : PlaybackAction
 
     data object Next : PlaybackAction
+
+    data class ToggleBurnIn(
+        val enabled: Boolean,
+    ) : PlaybackAction
 }
 
 @OptIn(UnstableApi::class)

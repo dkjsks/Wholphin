@@ -288,6 +288,10 @@ fun PlaybackPageContent(
                 viewModel.playNextUp()
             }
 
+            is PlaybackAction.ToggleBurnIn -> {
+                viewModel.changeBurnInSubtitles(it.enabled)
+            }
+
             PlaybackAction.Previous -> {
                 val pos = player.currentPosition
                 if (pos < player.maxSeekToPreviousPosition && playlist.hasPrevious()) {
@@ -596,6 +600,7 @@ fun PlaybackPageContent(
                     subtitleDelay = subtitleDelay,
                     hasSubtitleDownloadPermission =
                         remember(userDto) { userDto?.policy?.let { it.isAdministrator || it.enableSubtitleManagement } == true },
+                    burnInSubtitles = currentItemPlayback?.burnInSubtitles ?: false,
                 ),
             onDismissRequest = {
                 playbackDialog = null

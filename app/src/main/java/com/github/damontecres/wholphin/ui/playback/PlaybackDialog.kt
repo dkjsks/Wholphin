@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -54,6 +55,7 @@ data class PlaybackSettings(
     val contentScale: ContentScale,
     val subtitleDelay: Duration,
     val hasSubtitleDownloadPermission: Boolean,
+    val burnInSubtitles: Boolean = false,
 )
 
 @Composable
@@ -98,6 +100,10 @@ fun PlaybackDialog(
                 choices = settings.subtitleStreams,
                 currentChoice = settings.subtitleIndex,
                 hasDownloadPermission = settings.hasSubtitleDownloadPermission,
+                burnInSubtitles = settings.burnInSubtitles,
+                onToggleBurnIn = { enabled ->
+                    onPlaybackActionClick.invoke(PlaybackAction.ToggleBurnIn(enabled))
+                },
                 onDismissRequest = {
                     onControllerInteraction.invoke()
                     onDismissRequest.invoke()
@@ -280,6 +286,8 @@ fun SubtitleChoiceBottomDialog(
     onSelectSearch: () -> Unit,
     gravity: Int,
     hasDownloadPermission: Boolean,
+    burnInSubtitles: Boolean = false,
+    onToggleBurnIn: (Boolean) -> Unit = {},
     currentChoice: Int? = null,
 ) {
     // TODO enforcing a width ends up ignore the gravity
@@ -365,6 +373,25 @@ fun SubtitleChoiceBottomDialog(
                             if (choice.streamTitle != null) Text(choice.displayTitle)
                         },
                         interactionSource = interactionSource,
+                    )
+                }
+                item {
+                    HorizontalDivider()
+                    ListItem(
+                        selected = false,
+                        onClick = { onToggleBurnIn(!burnInSubtitles) },
+                        leadingContent = {
+                            Checkbox(
+                                checked = burnInSubtitles,
+                                onCheckedChange = { onToggleBurnIn(it) },
+                            )
+                        },
+                        headlineContent = {
+                            Text(
+                                text = stringResource(R.string.burn_in_subtitles),
+                            )
+                        },
+                        supportingContent = {},
                     )
                 }
                 item {

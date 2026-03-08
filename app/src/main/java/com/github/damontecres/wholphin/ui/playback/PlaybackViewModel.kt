@@ -533,8 +533,8 @@ class PlaybackViewModel
                         subtitleIndex,
                         if (positionMs > 0) positionMs else C.TIME_UNSET,
                         itemPlayback != null, // If it was passed in, then it was not queried from the database
-                        enableDirectPlay = !forceTranscoding,
-                        enableDirectStream = !forceTranscoding,
+                        enableDirectPlay = !forceTranscoding && !itemPlaybackToUse.burnInSubtitles,
+                        enableDirectStream = !forceTranscoding && !itemPlaybackToUse.burnInSubtitles,
                     )
                     player.prepare()
                     player.play()
@@ -554,8 +554,8 @@ class PlaybackViewModel
             subtitleIndex: Int?,
             positionMs: Long = 0,
             userInitiated: Boolean,
-            enableDirectPlay: Boolean = !this.forceTranscoding,
-            enableDirectStream: Boolean = !this.forceTranscoding,
+            enableDirectPlay: Boolean = !this.forceTranscoding && !(this.currentItemPlayback.value?.burnInSubtitles ?: false),
+            enableDirectStream: Boolean = !this.forceTranscoding && !(this.currentItemPlayback.value?.burnInSubtitles ?: false),
         ) = withContext(Dispatchers.IO) {
             val itemId = item.id
 
@@ -599,7 +599,7 @@ class PlaybackViewModel
                             audioStreamIndex = audioIndex,
                             subtitleStreamIndex = subtitleIndex,
                             mediaSourceId = currentItemPlayback.sourceId?.toServerString(),
-                            alwaysBurnInSubtitleWhenTranscoding = false,
+                            alwaysBurnInSubtitleWhenTranscoding = currentItemPlayback.burnInSubtitles,
                             maxStreamingBitrate = maxBitrate.toInt(),
                             enableDirectPlay = enableDirectPlay,
                             enableDirectStream = enableDirectStream,
@@ -656,20 +656,24 @@ class PlaybackViewModel
                 val externalSubtitleCount = source.externalSubtitlesCount
 
                 val externalSubtitle =
-                    source.findExternalSubtitle(subtitleIndex)?.let {
-                        it.deliveryUrl?.let { deliveryUrl ->
-                            var flags = 0
-                            if (it.isForced) flags = flags.or(C.SELECTION_FLAG_FORCED)
-                            if (it.isDefault) flags = flags.or(C.SELECTION_FLAG_DEFAULT)
-                            MediaItem.SubtitleConfiguration
-                                .Builder(
-                                    api.createUrl(deliveryUrl).toUri(),
-                                ).setId("e:${it.index}")
-                                .setMimeType(subtitleMimeTypes[it.codec])
-                                .setLanguage(it.language)
-                                .setLabel(it.title)
-                                .setSelectionFlags(flags)
-                                .build()
+                    if (currentItemPlayback.burnInSubtitles) {
+                        null
+                    } else {
+                        source.findExternalSubtitle(subtitleIndex)?.let {
+                            it.deliveryUrl?.let { deliveryUrl ->
+                                var flags = 0
+                                if (it.isForced) flags = flags.or(C.SELECTION_FLAG_FORCED)
+                                if (it.isDefault) flags = flags.or(C.SELECTION_FLAG_DEFAULT)
+                                MediaItem.SubtitleConfiguration
+                                    .Builder(
+                                        api.createUrl(deliveryUrl).toUri(),
+                                    ).setId("e:${it.index}")
+                                    .setMimeType(subtitleMimeTypes[it.codec])
+                                    .setLanguage(it.language)
+                                    .setLabel(it.title)
+                                    .setSelectionFlags(flags)
+                                    .build()
+                            }
                         }
                     }
 
@@ -881,6 +885,24 @@ class PlaybackViewModel
                     resolvedSubtitleIndex,
                     onMain { player.currentPosition },
                     true,
+                )
+            }
+        }
+
+        fun changeBurnInSubtitles(enabled: Boolean) {
+            viewModelScope.launchIO {
+                val itemPlayback = currentItemPlayback.value?.copy(burnInSubtitles = enabled) ?: return@launchIO
+                itemPlaybackDao.saveItem(itemPlayback)
+                currentItemPlayback.setValueOnMain(itemPlayback)
+                changeStreams(
+                    item = item,
+                    currentItemPlayback = itemPlayback,
+                    audioIndex = itemPlayback.audioIndex.takeIf { it >= 0 },
+                    subtitleIndex = itemPlayback.subtitleIndex.takeIf { it >= 0 },
+                    positionMs = onMain { player.currentPosition },
+                    userInitiated = true,
+                    enableDirectPlay = !enabled && !forceTranscoding,
+                    enableDirectStream = !enabled && !forceTranscoding,
                 )
             }
         }
